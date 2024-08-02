@@ -6,7 +6,8 @@
 #' @param K the total number of baskets
 #' @param n the sample size in each basket (give either a vector of length K or a single numeric value)
 #'
-#' @return a vector of length sum(n) or n*K with all observations 0 or 1
+#' @return a list containing a vector y of length sum(n) or n*K with all observations 0 or 1
+#' and a covariates matrix x with element j,k equals 1 if observation j belongs to basket k, 0 if else
 #' @export
 #'
 #' @examples
@@ -17,7 +18,11 @@ emulate_trial<-function(p_0 = 0.15, p_A = 0.45, A, K = 5, n = 12){
   if(length(n)!=1 & length(n)!= K){print("Warning: n should be length K or 1")}
   if(length(n)==1){n_obs<-rep(n,K)}else{n_obs<-n}
   y <- Reduce(c, sapply(1:K, function(k) rbinom(n_obs[k], 1, prob = prob_true[k])))
-  return(y)
-}
 
+  x<-matrix(0,ncol=K, nrow=sum(n_obs))
+  x[1:n_obs[1],1]<-1
+    for(k in 2:K-1){x[(cumsum(n_obs)[k]+1):(cumsum(n_obs)[k+1]), (k+1)]<-1 }
+
+  create_named_list(y, x)
+}
 

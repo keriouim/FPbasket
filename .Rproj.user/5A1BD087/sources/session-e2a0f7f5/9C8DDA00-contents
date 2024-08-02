@@ -44,6 +44,8 @@ matrixB<-function(K){
 logit_inv<-function(x){return(exp(x)/(exp(x)+1))}
 
 
-
+create_named_list <- function(...) {
+  setNames(list(...), as.character(match.call()[-1]))
+}
 
 
