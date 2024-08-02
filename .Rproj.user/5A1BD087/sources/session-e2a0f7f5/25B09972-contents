@@ -1,0 +1,383 @@
+rm(list=ls())
+setwd(dir="C:/Users/Marion/OneDrive - University of Cambridge, MRC Biostatistics Unit/msk/review smmr/simus")
+library(glmnet)
+library(gtools)
+library(MASS)
+#####################################
+##tuning procedure (see simulation plan)
+###### we only stock the FWER, MP and probability of pooling of interest for the tuning procedure
+
+#my functions
+antidiag=function(n){
+  vector1 = seq(1,n,1)
+  return(diag(n)[length(vector1):1, ])
+}
+
+matrixB=function(K){
+  temp=c()
+  temp=rbind(temp,c(1,rep(0,K-1)))
+  for(j in 1:(K-1)){
+    
+    temp=rbind(temp,cbind(-antidiag(j), rep(1,j),matrix(0, nrow=(j),ncol=(K-j-1) )))
+    
+  }
+  return(temp)
+}
+
+logit_inv=function(x){return(exp(x)/(exp(x)+1))}
+
+##############################################################################################
+#step 1 of tuning procedure, global null hypothesis
+#we select the couples (pi, lambda) to reach the 10% FWER
+#while fixing the number of patients n to 10
+
+A<-1
+K <- 5 # number of baskets
+
+L=10000
+p_A=0.45
+p_0=0.15
+
+ 
+
+  n=12
+ 
+  gamma<-0.4
+  #grid search for triplet N, lambda, theta_tilde (only considering triplets for which FWER=0.10 under the global null)
+couple=read.table(paste0("couple_pi_lambda_gamma=",gamma,".txt"), sep=",", header=T)[-1,]
+couple<-couple[-1,]
+  pi_grid= couple$pi
+  lambda_grid=couple$lambda
+  
+  n_grid=n
+  
+  #outcome stock the decision for each basket and each simulated trial
+  outcome=matrix(0, nrow=L, ncol=K)
+  MSE=matrix(0, nrow=L, ncol=K)
+  pi_hat_stock=matrix(0, nrow=L, ncol=K)
+  #we stock for each triplet the FWER, the marginal probability of rejection for each basket, and the probability to pool the active basket with an inactive basket
+  grid_search=data.frame(pi=NA, lambda=NA, n=NA, FWER=NA, P1=NA, P2=NA, P3=NA, P4=NA, P5=NA, proba_pool=NA, proba_a_a=NA, proba_ina_ina=NA, proba_a_ina=NA, MSE1=NA, MSE2=NA, MSE3=NA, MSE4=NA, MSE5=NA)
+   
+  for(ind in 1:length(lambda_grid)){#for each lambda=penalty parameter
+    lambda_fixed=lambda_grid[ind]
+    pi=pi_grid[ind]
+    n=n
+    proba_pool=c()
+    proba_a_a=c()
+    proba_ina_ina=c()
+    proba_a_ina=c()
+    for(l in 1:L){#for each simulation l
+      
+      ########### generate data ###########
+      
+      # prepare the input for metafuse
+      y <- rbinom(K*n, 1, prob=c(rep(p_0,(K-A)*n), rep(p_A,A*n)))
+      while(sum(y)<2){y <- rbinom(K*n, 1, prob=c(rep(p_0,(K-A)*n), rep(p_A,A*n)))}
+      sid <- rep(1:K,each=n)
+      
+      #matrix x of indicators of "belonging in group k"
+      x=matrix(0,ncol=K, nrow=n*K)
+      x[1:n,1]=1
+      for(k in 2:K-1){
+        x[(k*n+1):((k+1)*n), (k+1)]=1
+      }
+      
+      
+      n.k      <- table(sid)  #sapply(studies, function(x){sum(sid==x)})
+      N        <- length(sid)
+      
+      
+      ####################
+      #equal weights, no bayesian bootstrap
+      weights=rep(1/K, K*n)
+      X.b      <- x
+      #transformation matrix D
+      D       <- matrixB(K)
+      
+      #transformed covariates matrix
+      X.t      <- X.b %*% ginv(D)
+      
+      glmnet.ada.fit <- glmnet(X.t, y, family="binomial", alpha=gamma,lambda=lambda_fixed,weights=weights, intercept=F, standardize=F,penalty.factor = c(0,rep(1,10)))
+      
+      #beta_hat is the transformation theta_hat[k]-theta_hat[k']
+      beta_hat       <- drop(coef(glmnet.ada.fit)[-1])
+      #theta_hat is the logit transformation of pi_hat
+      theta_hat   <- drop(ginv(D)%*%beta_hat)
+      theta_hat
+      pi_hat=logit_inv(theta_hat)
+      
+      if(A==0 | A==5){
+        proba_pool=append(proba_pool, as.numeric(pi_hat[5]==pi_hat[1] & pi_hat[5]==pi_hat[2] & pi_hat[5]==pi_hat[3]& pi_hat[5]==pi_hat[4]))
+      }
+      if(A==1){
+        proba_pool=append(proba_pool, as.numeric(pi_hat[5]!=pi_hat[1] & pi_hat[1]==pi_hat[2] & pi_hat[1]==pi_hat[3]& pi_hat[1]==pi_hat[4]))
+      }
+      if(A==2){
+        proba_pool=append(proba_pool, as.numeric(pi_hat[5]!=pi_hat[1] & pi_hat[1]==pi_hat[2] & pi_hat[1]==pi_hat[3]& pi_hat[5]==pi_hat[4]))
+      }
+      if(A==3){
+        proba_pool=append(proba_pool, as.numeric(pi_hat[5]!=pi_hat[1] & pi_hat[1]==pi_hat[2] & pi_hat[5]==pi_hat[3]& pi_hat[5]==pi_hat[4]))
+      }
+      if(A==4){
+        proba_pool=append(proba_pool, as.numeric(pi_hat[5]!=pi_hat[1] & pi_hat[5]==pi_hat[2] & pi_hat[5]==pi_hat[3]& pi_hat[5]==pi_hat[4]))
+      }
+      
+      proba_a_a[l]=as.numeric(pi_hat[5]==pi_hat[4])
+      proba_ina_ina[l]=as.numeric(pi_hat[1]==pi_hat[2])
+      proba_a_ina[l]=as.numeric(pi_hat[1]==pi_hat[5])
+      
+     
+      #if estimated pi_hat smaller than critical value pi, then outcome=0, otherwise outcome=1
+      for(k in 1:K){
+        outcome[l,k]=as.numeric(pi_hat[k]>pi)
+        MSE[l,k]=pi_hat[k]-c(rep(p_0,(K-A)), rep(p_A,A))[k]
+        pi_hat_stock[l,k]=pi_hat[k]
+      }
+      
+      
+      # print(l)
+    }
+    MSE1=mean(MSE[,1]^2)
+    MSE2=mean(MSE[,2]^2)
+    MSE3=mean(MSE[,3]^2)
+    MSE4=mean(MSE[,4]^2)
+    MSE5=mean(MSE[,5]^2)
+    write.table(pi_hat_stock,paste0("pi_hat_stock_lambda=",lambda_fixed ,"A=",A,"_gamma=",gamma,".txt"), sep=",", col.names = TRUE, row.names=FALSE)
+    # mean(rowSums(outcome[,1:3])>=1)
+    if(A==5){FWER=NA}
+    if(A==4){FWER=mean(outcome[,1])}
+    if(A!=4 & A!=5){FWER=mean(rowSums(outcome[,1:(K-A)])>=1)}
+    grid_search=rbind(grid_search, data.frame(pi=pi,lambda=lambda_fixed, n=n, FWER=FWER, P1=mean(outcome[,1]), P2=mean(outcome[,2]),P3=mean(outcome[,3]), P4=mean(outcome[,4]), P5=mean(outcome[,5]), proba_pool=mean(proba_pool),proba_a_a=mean(proba_a_a),proba_ina_ina=mean(proba_ina_ina), proba_a_ina=mean(proba_a_ina), MSE1, MSE2, MSE3, MSE4,MSE5))
+    
+    print(paste0("##########################################pi=",pi))
+    print(paste0("##########################################lambda=",lambda_fixed))
+    print(paste0("##########################################Iteration ", ind, " over ", length(lambda_grid)))
+    
+   
+  
+  
+  
+  }
+  grid_search=grid_search[order(grid_search$lambda),]
+  write.table(grid_search, paste0("grid_search_A",A,"_gamma=",gamma,".txt"), sep=",", col.names = TRUE, row.names=FALSE)
+  
+  # #####################A=0----------------------
+  # 
+  # ###FWER graph for A=0
+  # par(mar=c(4,4,1,4))
+  # plot(grid_search$lambda, grid_search$FWER,lwd=2,col="red4",ylim=c(0.05,0.15), type="l" , axes=F, ylab="", xlab="")
+  # axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-0.1,0.3,0.01), col="red4")
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Family-Wise Error Rate (FWER)", line=2.3, col="red4")
+  # abline(h=0.10, lty=2, col="firebrick", lwd=2)
+  # text(x=c(0.018), y=c(0.102), "FWER=0.10", cex=1.1,col="firebrick")
+  # 
+  # par(new=TRUE)
+  # plot(grid_search$lambda, grid_search$pi,lwd=2,col="dodgerblue3", type="l",axes=F, ylab="",xlab="")
+  # abline(v=0.012, lty=3)
+  # text(x=c(0.012), y=c(0.35), "lambda=0.012")
+  # axis(side=4, lwd=2, seq(-0.1,0.4,0.04), col="dodgerblue3")
+  # mtext(side=4, col="dodgerblue3", line=2.3, "Critical value")
+  # abline(h=0.33, lty=2, col="dodgerblue", lwd=2)
+  # text(x=c(0.015), y=c(0.333), "critical value=0.33", col="dodgerblue")
+  # abline(h=0.21, lty=2, col="dodgerblue", lwd=2)
+  # text(x=c(0.017), y=c(0.213), "critical value=0.21", col="dodgerblue")
+  # 
+  # ####
+  # #probability of pooling A=0
+  # plot(grid_search$lambda, grid_search$proba_ina_ina, lwd=2,type="l", col="forestgreen", axes=F, xlab="", ylab="")
+  # legend(bty="n", "topleft",col=c(  "forestgreen" ),lty=1,lwd=2, c(  "Inactive/Inactive"))
+  # axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-1,1,0.1) )
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Probability of pooling", line=2.3 )
+  # legend( bty="n", "bottomright", c(  "Global null scenario (A=0)"))
+  # 
+  # 
+  # #####################A=1----------------------
+  # 
+  # ###FWER graph for A=1
+  # par(mar=c(4,4,1,4))
+  # plot(grid_search$lambda, grid_search$FWER,lwd=2,col="red4",ylim=c(0,0.5), type="l" , axes=F, ylab="", xlab="")
+  # axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-0.1,0.5,0.1), col="red4")
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Family-Wise Error Rate (FWER)", line=2.3, col="red4")
+  # abline(h=0.10, lty=2, col="firebrick", lwd=2)
+  # text(x=c(0.018), y=c(0.102), "FWER=0.10", cex=1.1,col="firebrick")
+  # 
+  # par(new=TRUE)
+  # plot(grid_search$lambda, grid_search$pi,lwd=2,col="dodgerblue3", type="l",axes=F, ylab="",xlab="")
+  # abline(v=0.012, lty=3)
+  # text(x=c(0.012), y=c(0.35), "lambda=0.012")
+  # axis(side=4, lwd=2, seq(-0.1,0.4,0.04), col="dodgerblue3")
+  # mtext(side=4, col="dodgerblue3", line=2.3, "Critical value")
+  # abline(h=0.33, lty=2, col="dodgerblue", lwd=2)
+  # text(x=c(0.015), y=c(0.333), "critical value=0.33", col="dodgerblue")
+  # abline(h=0.21, lty=2, col="dodgerblue", lwd=2)
+  # text(x=c(0.017), y=c(0.213), "critical value=0.21", col="dodgerblue")
+  # 
+  # 
+  # 
+  # ####
+  # #probability of pooling A=1
+  # plot(grid_search$lambda, grid_search$proba_ina_ina,ylim=c(0,1), lwd=2,type="l", col="forestgreen", axes=F, xlab="", ylab="")
+  # points(grid_search$lambda, grid_search$proba_a_ina, type="l", lwd=2,col="firebrick")
+  # legend(bty="n", "topleft",col=c(  "forestgreen", "firebrick"),lty=1,lwd=2, c(  "Inactive/Inactive", "Active/Inactive"))
+  # 
+  #  axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-1,1,0.1) )
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Probability of pooling", line=2.3 )
+  # legend( bty="n", "bottomright", c(  "Scenario A=1"))
+  # 
+  # 
+  # 
+  # #####################A=2----------------------
+  # 
+  # ###FWER graph for A=2
+  # par(mar=c(4,4,1,4))
+  # plot(grid_search$lambda, grid_search$FWER,lwd=2,col="red4",ylim=c(0,0.9), type="l" , axes=F, ylab="", xlab="")
+  # axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-0.1,1,0.1), col="red4")
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Family-Wise Error Rate (FWER)", line=2.3, col="red4")
+  # abline(h=0.10, lty=2, col="firebrick", lwd=2)
+  # text(x=c(0.018), y=c(0.102), "FWER=0.10", cex=1.1,col="firebrick")
+  # 
+  # par(new=TRUE)
+  # plot(grid_search$lambda, grid_search$pi,lwd=2,col="dodgerblue3", type="l",axes=F, ylab="",xlab="")
+  # abline(v=0.012, lty=3)
+  # text(x=c(0.012), y=c(0.35), "lambda=0.012")
+  # axis(side=4, lwd=2, seq(-0.1,0.4,0.04), col="dodgerblue3")
+  # mtext(side=4, col="dodgerblue3", line=2.3, "Critical value")
+  # abline(h=0.33, lty=2, col="dodgerblue", lwd=2)
+  # text(x=c(0.017), y=c(0.327), "critical value=0.33", col="dodgerblue")
+  # abline(h=0.21, lty=2, col="dodgerblue", lwd=2)
+  # text(x=c(0.017), y=c(0.213), "critical value=0.21", col="dodgerblue")
+  # 
+  # 
+  # 
+  # ####
+  # #probability of pooling A=2
+  # plot(grid_search$lambda, grid_search$proba_ina_ina,ylim=c(0,0.9), lwd=2,type="l", col="forestgreen", axes=F, xlab="", ylab="")
+  # points(grid_search$lambda, grid_search$proba_a_ina, type="l", lwd=2,col="firebrick")
+  # points(grid_search$lambda, grid_search$proba_a_a,lwd=2, type="l",col="dodgerblue" )
+  # 
+  # legend(bty="n", "topleft",col=c("dodgerblue",  "forestgreen", "firebrick"),lty=1,lwd=2, c( "Active/active",  "Inactive/Inactive", "Active/Inactive"))
+  # 
+  # axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-1,1,0.1) )
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Probability of pooling", line=2.3 )
+  # legend( bty="n", "bottomright", c(  "Scenario A=2"))
+  # abline(v=0.009, lty=3)
+  # text(x=c(0.007), y=c(0.6), "lambda=0.009")
+  #  abline(v=0.010, lty=3)
+  # text(x=c(0.012), y=c(0.1), "lambda=0.010")
+  # 
+  # 
+  # 
+  # 
+  # #####################A=3----------------------
+  # 
+  # ###FWER graph for A=3
+  # par(mar=c(4,4,1,4))
+  # plot(grid_search$lambda, grid_search$FWER,lwd=2,col="red4",ylim=c(0,1), type="l" , axes=F, ylab="", xlab="")
+  # axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-0.1,1,0.1), col="red4")
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Family-Wise Error Rate (FWER)", line=2.3, col="red4")
+  # abline(h=0.10, lty=2, col="firebrick", lwd=2)
+  # text(x=c(0.018), y=c(0.102), "FWER=0.10", cex=1.1,col="firebrick")
+  # 
+  # par(new=TRUE)
+  # plot(grid_search$lambda, grid_search$pi,lwd=2,col="dodgerblue3", type="l",axes=F, ylab="",xlab="")
+  # abline(v=0.012, lty=3)
+  # text(x=c(0.012), y=c(0.35), "lambda=0.012")
+  # axis(side=4, lwd=2, seq(-0.1,0.4,0.04), col="dodgerblue3")
+  # mtext(side=4, col="dodgerblue3", line=2.3, "Critical value")
+  # abline(h=0.33, lty=2, col="dodgerblue", lwd=2)
+  # text(x=c(0.017), y=c(0.327), "critical value=0.33", col="dodgerblue")
+  # abline(h=0.21, lty=2, col="dodgerblue", lwd=2)
+  # text(x=c(0.017), y=c(0.213), "critical value=0.21", col="dodgerblue")
+  # 
+  # 
+  # 
+  # ####
+  # #probability of pooling A=3
+  # plot(grid_search$lambda, grid_search$proba_ina_ina,ylim=c(0,0.9), lwd=2,type="l", col="forestgreen", axes=F, xlab="", ylab="")
+  # points(grid_search$lambda, grid_search$proba_a_ina, type="l", lwd=2,col="firebrick")
+  # points(grid_search$lambda, grid_search$proba_a_a,lwd=2, type="l",col="dodgerblue" )
+  # 
+  # legend(bty="n", "topleft",col=c("dodgerblue",  "forestgreen", "firebrick"),lty=1,lwd=2, c( "Active/active",  "Inactive/Inactive", "Active/Inactive"))
+  # 
+  # axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-1,1,0.1) )
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Probability of pooling", line=2.3 )
+  # legend( bty="n", "bottomright", c(  "Scenario A=3"))
+  # abline(v=0.011, lty=3)
+  # text(x=c(0.009), y=c(0.6), "lambda=0.011")
+  # abline(v=0.012, lty=3)
+  # text(x=c(0.014), y=c(0.1), "lambda=0.012")
+  # 
+  # 
+  # #####################A=4----------------------
+  # 
+  # ###FWER graph for A=4
+  # par(mar=c(4,4,1,4))
+  # plot(grid_search$lambda, grid_search$FWER,lwd=2,col="red4",ylim=c(0,1), type="l" , axes=F, ylab="", xlab="")
+  # axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-0.1,1,0.1), col="red4")
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Family-Wise Error Rate (FWER)", line=2.3, col="red4")
+  # abline(h=0.10, lty=2, col="firebrick", lwd=2)
+  # text(x=c(0.018), y=c(0.102), "FWER=0.10", cex=1.1,col="firebrick")
+  # 
+  # par(new=TRUE)
+  # plot(grid_search$lambda, grid_search$pi,lwd=2,col="dodgerblue3", type="l",axes=F, ylab="",xlab="")
+  # abline(v=0.012, lty=3)
+  # text(x=c(0.012), y=c(0.35), "lambda=0.012")
+  # axis(side=4, lwd=2, seq(-0.1,0.4,0.04), col="dodgerblue3")
+  # mtext(side=4, col="dodgerblue3", line=2.3, "Critical value")
+  # abline(h=0.33, lty=2, col="dodgerblue", lwd=2)
+  # text(x=c(0.017), y=c(0.327), "critical value=0.33", col="dodgerblue")
+  # abline(h=0.21, lty=2, col="dodgerblue", lwd=2)
+  # text(x=c(0.017), y=c(0.213), "critical value=0.21", col="dodgerblue")
+  # 
+  # ####
+  # #probability of pooling A=4
+  # plot(grid_search$lambda, grid_search$proba_a_ina,ylim=c(0,0.9), lwd=2,type="l", col="firebrick", axes=F, xlab="", ylab="")
+  # points(grid_search$lambda, grid_search$proba_a_a,lwd=2, type="l",col="dodgerblue" )
+  # 
+  # legend(bty="n", "topleft",col=c("dodgerblue",   "firebrick"),lty=1,lwd=2, c( "Active/active",   "Active/Inactive"))
+  # 
+  # axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-1,1,0.1) )
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Probability of pooling", line=2.3 )
+  # legend( bty="n", "bottomright", c(  "Scenario A=4"))
+  # 
+  # 
+  # #####################A=5----------------------
+  #  
+  # ####
+  # #probability of pooling A=5
+  # plot(grid_search$lambda, grid_search$proba_a_a,ylim=c(0,0.9), lwd=2,type="l", col="dodgerblue", axes=F, xlab="", ylab="")
+  # 
+  # legend(bty="n", "topleft",col=c("dodgerblue" ),lty=1,lwd=2, c( "Active/active" ))
+  # 
+  # axis(side=1, lwd=2, seq(-0.3,0.3,0.005))
+  # axis(side=2, lwd=2, seq(-1,1,0.1) )
+  # mtext(side=1, "Penalty parameter lambda", line=2)
+  # mtext(side=2, "Probability of pooling", line=2.3 )
+  # legend( bty="n", "bottomright", c(  "Scenario A=5"))
+  # 
+  # 
+  # 
+  # 
+  # 
+  # 
+  #  

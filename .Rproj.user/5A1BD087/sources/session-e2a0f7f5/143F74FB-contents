@@ -1,0 +1,4 @@
+antidiag=function(n){
+  vector1 = seq(1,n,1)
+  return(diag(n)[length(vector1):1, ])
+}
