@@ -23,6 +23,6 @@ emulate_trial<-function(p_0 = 0.15, p_A = 0.45, A, K = 5, n = 12){
   x[1:n_obs[1],1]<-1
     for(k in 2:K-1){x[(cumsum(n_obs)[k]+1):(cumsum(n_obs)[k+1]), (k+1)]<-1 }
 
-  create_named_list(y, x)
+  create_named_list(y, x, prob_true)
 }
 

@@ -5,7 +5,8 @@
 #' @param lambda the penalty parameter controlling strength of borrowing
 #' @param gamma controls the weigths of L1 and L2 norms
 #'
-#' @return estimated values for the K response probabilities (natural scale)
+#' @return estimated values for the K response probabilities (natural scale) and
+#'the squared difference between the estimates and the true value when a true value was specified
 #' @export
 #'
 #' @examples
@@ -14,7 +15,7 @@
 #' x <- data_simu$x
 #' runFPmodel(x, y, lambda=0.008, gamma=1)
 #'
-runFPmodel<-function(x,y, lambda, gamma){
+runFPmodel<-function(x, y,  lambda = 0.004, gamma = 1, pi_true=NULL){
   K<-dim(x)[2]
   B<-matrixB(K)
   x.b<-x %*% ginv(B)
@@ -22,6 +23,11 @@ runFPmodel<-function(x,y, lambda, gamma){
   glmnet.fit <- glmnet(x.b, y, family="binomial", alpha=gamma,lambda=lambda,weights=rep(1/K, length(y)), intercept=F, standardize=F,penalty.factor = c(0,rep(1,(dim(B)[1]-1))))
   theta_hat <- drop(ginv(B)%*%drop(coef(glmnet.fit)[-1]))
   pi_hat <- logit_inv(theta_hat)
-  return(pi_hat)
+
+  if(!is.null(pi_true)){
+    sq_diff<-(pi_hat-pi_true)^2
+    create_named_list(pi_hat, sq_diff)
+  }else{return(pi_hat)}
+
 }
 
