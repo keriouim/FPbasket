@@ -18,7 +18,8 @@ emulate_trial(p_0 = 0.15, p_A = 0.45, A, K = 5, n = 12)
 \item{n}{the sample size in each basket (give either a vector of length K or a single numeric value)}
 }
 \value{
-a vector of length sum(n) or n*K with all observations 0 or 1
+a list containing a vector y of length sum(n) or n*K with all observations 0 or 1
+and a covariates matrix x with element j,k equals 1 if observation j belongs to basket k, 0 if else
 }
 \description{
 Emulate a single-stage trial
