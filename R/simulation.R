@@ -17,7 +17,8 @@ emulate_trial<-function(p_0 = 0.15, p_A = 0.45, A, K = 5, n = 12){
   prob_true<-c(rep(p_0, (K-A)), rep(p_A, A))
   if(length(n)!=1 & length(n)!= K){print("Warning: n should be length K or 1")}
   if(length(n)==1){n_obs<-rep(n,K)}else{n_obs<-n}
-  y <- Reduce(c, sapply(1:K, function(k) rbinom(n_obs[k], 1, prob = prob_true[k])))
+  y <- rep(0, sum(n_obs))
+  while(sum(y)<2){y <- Reduce(c, sapply(1:K, function(k) rbinom(n_obs[k], 1, prob = prob_true[k])))}
 
   x<-matrix(0,ncol=K, nrow=sum(n_obs))
   x[1:n_obs[1],1]<-1

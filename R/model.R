@@ -4,6 +4,8 @@
 #' @param y is the vector of observations, is 1 if individual responds to trt, 0 if not
 #' @param lambda the penalty parameter controlling strength of borrowing
 #' @param gamma controls the weigths of L1 and L2 norms
+#' @param pi_true a vector of numeric values corresponding to the real values of the response probability in each basket,
+#' each value should be between 0 and 1 and the length of the vector should be the same than the number of columns in x
 #'
 #' @return estimated values for the K response probabilities (natural scale) and
 #'the squared difference between the estimates and the true value when a true value was specified
@@ -17,11 +19,15 @@
 #'
 runFPmodel<-function(x, y,  lambda = 0.004, gamma = 1, pi_true=NULL){
   K<-dim(x)[2]
-  B<-matrixB(K)
-  x.b<-x %*% ginv(B)
+  if(length(pi_true)!=K & length(pi_true)!=0 ){
+    stop(paste0("pi_true should be of length ",K, " or NULL"))
+  }
 
-  glmnet.fit <- glmnet(x.b, y, family="binomial", alpha=gamma,lambda=lambda,weights=rep(1/K, length(y)), intercept=F, standardize=F,penalty.factor = c(0,rep(1,(dim(B)[1]-1))))
-  theta_hat <- drop(ginv(B)%*%drop(coef(glmnet.fit)[-1]))
+  B<-matrixB(K)
+  x.b<-x %*% MASS::ginv(B)
+
+  glmnet.fit <- glmnet::glmnet(x.b, y, family="binomial", alpha=gamma,lambda=lambda,weights=rep(1/K, length(y)), intercept=F, standardize=F,penalty.factor = c(0,rep(1,(dim(B)[1]-1))))
+  theta_hat <- drop(MASS::ginv(B)%*%drop(coef(glmnet.fit)[-1]))
   pi_hat <- logit_inv(theta_hat)
 
   if(!is.null(pi_true)){

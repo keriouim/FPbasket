@@ -4,7 +4,7 @@
 \alias{runFPmodel}
 \title{Run the fusion-penalized logistic regression model}
 \usage{
-runFPmodel(x, y, lambda, gamma)
+runFPmodel(x, y, lambda = 0.004, gamma = 1, pi_true = NULL)
 }
 \arguments{
 \item{x}{is the covariates matrix of size sum(n)xK with element is 1 if observation belongs to the basket, 0 if else}
@@ -14,9 +14,13 @@ runFPmodel(x, y, lambda, gamma)
 \item{lambda}{the penalty parameter controlling strength of borrowing}
 
 \item{gamma}{controls the weigths of L1 and L2 norms}
+
+\item{pi_true}{a vector of numeric values corresponding to the real values of the response probability in each basket,
+each value should be between 0 and 1 and the length of the vector should be the same than the number of columns in x}
 }
 \value{
-estimated values for the K response probabilities (natural scale)
+estimated values for the K response probabilities (natural scale) and
+the squared difference between the estimates and the true value when a true value was specified
 }
 \description{
 Run the fusion-penalized logistic regression model

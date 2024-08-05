@@ -1,1 +1,3 @@
 exportPattern("^[[:alpha:]]+")
+importFrom("stats", "coef", "rbinom", "setNames")
+
