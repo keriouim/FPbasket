@@ -65,7 +65,6 @@ calibrate_finalDecision<-function(p_0 = 0.15, p_A = 0.45, K = 5, n = 12, lambda 
                                                                                          lambda = lambda, gamma = gamma,
                                                                                          pi_critic = pi_critic_grid[j])$outcomes)>=1 )))
   }
-
   pi_critic <- pi_critic_grid[which.min(abs(FWER_target-FWER_grid))]
   FWER <- FWER_grid[which.min(abs(FWER_target-FWER_grid))]
   create_named_list(pi_critic, FWER)
