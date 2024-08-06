@@ -64,3 +64,6 @@ stop_proba<-function(x){
 }
 
 
+
+
+

@@ -44,6 +44,8 @@ calibrate_finalDecision(
 \item{nb_replicate}{the number of simulated trials}
 
 \item{parallel.option}{boolean, TRUE if simulations should be ran in parallel}
+
+\item{nb_cores}{integer, number of cores for parallelization}
 }
 \value{
 two numerical values; the first one pi_critic is the optimal critical values among the ones considered

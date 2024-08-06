@@ -113,3 +113,47 @@ computeMSE<-function(p_0 = 0.15, p_A = 0.45, A = 3, K = 5, n = 12, lambda_min = 
 
 
 
+
+
+
+
+#' Give the probability of declaring drug activity in each basket under all scenarios of activity
+#'
+
+#' @param p_0 the null probability of response, default is 0.15
+#' @param p_A the active probability of response, default is 0.45
+#' @param K the total number of baskets
+#' @param n the sample size in each basket (give either a vector of length K or a single numeric value)
+#' @param lambda the penalty parameter
+#' @param gamma controls the weigths of L1 and L2 norms
+#' @param pi_critic the critical value of the final decision
+#' @param nb_replicate the number of simulated trials
+#'
+#' @return a table of dimension (K+1)*K with the probability of rejecting the null
+#'hypothesis in each basket under each scenario of activity A=0,...,K
+#'and a vector of the Family Wise Error Rate for each scenario of activity
+#'
+#' @export
+#'
+#' @examples
+#'summaryAllScenarios(nb_replicate =1000, K=3, n=20)
+
+summaryAllScenarios<-function(p_0 = 0.15, p_A = 0.45, K = 5, n = 12, lambda = 0.004, gamma = 1, pi_critic = 0.34, nb_replicate = 10000){
+
+  allScen <-  pbapply::pblapply(0:K, function(a) matrix(Reduce(rbind,
+         lapply(1:nb_replicate,
+                function(l) as.numeric(single_stage(p_0 = p_0, p_A = p_A, A = a,
+                                                    K = K, n = n, lambda = lambda,
+                                                    gamma = gamma, pi_critic = pi_critic )$outcomes))),ncol=K))
+
+  tab_prob<-Reduce(rbind, lapply(0:K+1, function(a) colMeans(allScen[[a]])))
+  colnames(tab_prob)<-c(paste0("Basket ", 1:K))
+  rownames(tab_prob)<-c(paste0("A = ", 0:K))
+
+  FWER=c(sapply( 0:(K-2), function(a) mean(rowSums(allScen[[a+1]][,(1:(K-a))])>=1)), mean(allScen[[K-1]][,1]), NA)
+  tab_FWER<-cbind(A=0:K, FWER)
+
+  create_named_list(tab_prob, tab_FWER)
+}
+
+
