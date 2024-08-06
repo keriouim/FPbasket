@@ -16,7 +16,8 @@ calibrate_finalDecision(
   pi_critic_max = 0.5,
   pi_critic_step = 0.05,
   nb_replicate = 10000,
-  parallel.option = TRUE
+  parallel.option = TRUE,
+  nb_cores = 2
 )
 }
 \arguments{
@@ -38,7 +39,7 @@ calibrate_finalDecision(
 
 \item{pi_critic_max}{the maximum value considered in the grid of optimization for the critical value}
 
-\item{pi_critic_step}{the steps length of the grid for the critical values}
+\item{pi_critic_step}{the steps of the grid for the critical values}
 
 \item{nb_replicate}{the number of simulated trials}
 
@@ -50,4 +51,8 @@ the second value is the FWER obtained with this given critical value
 }
 \description{
 Select the optimal critical value for the final analysis by targeting a specific FWER when no basket is truly active
+}
+\examples{
+calibrate_finalDecision(pi_critic_step = 0.1, pi_critic_min=0.3, nb_replicate = 100)
+
 }

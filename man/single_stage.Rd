@@ -38,3 +38,7 @@ outcomes is a vector of length K and each element is 1 if basket is declared act
 \description{
 Simulate, analyze and conclude on a simulated single-stage trial
 }
+\examples{
+single_stage(A=3)
+
+}
