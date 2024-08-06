@@ -20,7 +20,7 @@
 runFPmodel<-function(x, y,  lambda = 0.004, gamma = 1, pi_true=NULL){
   K<-dim(x)[2]
   if(length(pi_true)!=K & length(pi_true)!=0 ){
-    stop(paste0("pi_true should be of length ",K, " or NULL"))
+    stop(paste0("pi_true should be of length ", K, " or NULL"))
   }
 
   B<-matrixB(K)

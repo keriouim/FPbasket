@@ -15,7 +15,8 @@ calibrate_finalDecision(
   pi_critic_min = 0.1,
   pi_critic_max = 0.5,
   pi_critic_step = 0.05,
-  nb_replicate = 10000
+  nb_replicate = 10000,
+  parallel.option = TRUE
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ calibrate_finalDecision(
 \item{pi_critic_step}{the steps length of the grid for the critical values}
 
 \item{nb_replicate}{the number of simulated trials}
+
+\item{parallel.option}{boolean, TRUE if simulations should be ran in parallel}
 }
 \value{
 two numerical values; the first one pi_critic is the optimal critical values among the ones considered

@@ -36,6 +36,7 @@ single_stage<-function(p_0 = 0.15, p_A = 0.45, A, K = 5, n = 12, lambda = 0.004,
 #' @param pi_critic_max the maximum value considered in the grid of optimization for the critical value
 #' @param pi_critic_step the steps length of the grid for the critical values
 #' @param nb_replicate the number of simulated trials
+#' @param parallel.option boolean, TRUE if simulations should be ran in parallel
 #'
 #' @return two numerical values; the first one pi_critic is the optimal critical values among the ones considered
 #' the second value is the FWER obtained with this given critical value
@@ -43,11 +44,27 @@ single_stage<-function(p_0 = 0.15, p_A = 0.45, A, K = 5, n = 12, lambda = 0.004,
 #'
 #' @examples
 #'
-calibrate_finalDecision<-function(p_0 = 0.15, p_A = 0.45, K = 5, n = 12, lambda = 0.004, gamma = 1, FWER_target = 0.1, pi_critic_min = 0.1, pi_critic_max = 0.5, pi_critic_step = 0.05, nb_replicate = 10000 ){
+calibrate_finalDecision<-function(p_0 = 0.15, p_A = 0.45, K = 5, n = 12, lambda = 0.004, gamma = 1, FWER_target = 0.1, pi_critic_min = 0.1, pi_critic_max = 0.5, pi_critic_step = 0.05, nb_replicate = 10000, parallel.option = TRUE ){
+  stop_proba(FWER_target)#checking that the target FWER is between 0 and 1
+
   pi_critic_grid <- seq(pi_critic_min, pi_critic_max, pi_critic_step)
 
-  FWER_grid <- pbapply::pbsapply(1:length(pi_critic_grid), function (j) mean(sapply(1:nb_replicate,function(l) sum(single_stage(p_0 = p_0, p_A = p_A, A = 0, K = K, n = n,
-                                                  lambda = lambda, gamma = gamma, pi_critic = pi_critic_grid[j])$outcomes)>=1 )))
+  if(parallel.option){
+    pbapply::pboptions(use_lb=TRUE)
+    nb_cores<-min(parallel::detectCores()-2,length(pi_critic_grid)  )
+    cl<-parallel::makeCluster(nb_cores)
+    FWER_grid <- pbapply::pbsapply(1:length(pi_critic_grid),cl=cl,
+                                              function (j) mean(sapply(1:nb_replicate,
+                                              function(l) sum(single_stage(p_0 = p_0, p_A = p_A, A = 0, K = K, n = n,
+                                                                           lambda = lambda, gamma = gamma,
+                                                                           pi_critic = pi_critic_grid[j])$outcomes)>=1 )))
+  }else{
+    FWER_grid <- pbapply::pbsapply(1:length(pi_critic_grid),
+                                   function (j) mean(sapply(1:nb_replicate,
+                                                            function(l) sum(single_stage(p_0 = p_0, p_A = p_A, A = 0, K = K, n = n,
+                                                                                         lambda = lambda, gamma = gamma,
+                                                                                         pi_critic = pi_critic_grid[j])$outcomes)>=1 )))
+  }
 
   pi_critic <- pi_critic_grid[which.min(abs(FWER_target-FWER_grid))]
   FWER <- FWER_grid[which.min(abs(FWER_target-FWER_grid))]

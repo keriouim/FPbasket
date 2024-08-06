@@ -14,6 +14,9 @@
 #' emulate_trial(A=3, K=6, n=c(12,12,10,8,5,11))
 #'
 emulate_trial<-function(p_0 = 0.15, p_A = 0.45, A, K = 5, n = 12){
+  stop_proba(p_0)#checking if p_0 is between 0 and 1
+  stop_proba(p_A)#checking if p_A is between 0 and 1
+
   prob_true<-c(rep(p_0, (K-A)), rep(p_A, A))
   if(length(n)!=1 & length(n)!= K){print("Warning: n should be length K or 1")}
   if(length(n)==1){n_obs<-rep(n,K)}else{n_obs<-n}

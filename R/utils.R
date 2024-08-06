@@ -49,3 +49,18 @@ create_named_list <- function(...) {
 }
 
 
+#' stop current execution if element is not between 0 and 1
+#'
+#' @param x a numeric value
+#'
+#' @return an error message if x is not between 0 and 1
+#' @export
+#'
+#' @examples
+#' stop_proba(0.3)
+#'
+stop_proba<-function(x){
+  if(x>1 | x<0){stop(paste0(x," should be between 0 and 1"))}
+}
+
+
