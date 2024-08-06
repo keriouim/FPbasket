@@ -18,9 +18,10 @@ single_stage<-function(p_0 = 0.15, p_A = 0.45, A, K = 5, n = 12, lambda = 0.004,
   data_simu <- emulate_trial(p_0 = p_0, p_A = p_A, A = A, K = K, n = n)
   estimated <- runFPmodel(data_simu$x, data_simu$y, lambda = lambda, gamma = gamma, pi_true = data_simu$prob_true)
   estimates <- estimated$pi_hat
+  sq_diff <- estimated$sq_diff
   outcomes <- estimated$pi_hat>pi_critic
 
-  create_named_list(estimates,  outcomes)
+  create_named_list(estimates, sq_diff, outcomes)
 }
 
 #' Select the optimal critical value for the final analysis by targeting a specific FWER when no basket is truly active
@@ -69,3 +70,8 @@ calibrate_finalDecision<-function(p_0 = 0.15, p_A = 0.45, K = 5, n = 12, lambda 
   FWER <- FWER_grid[which.min(abs(FWER_target-FWER_grid))]
   create_named_list(pi_critic, FWER)
 }
+
+
+
+
+
